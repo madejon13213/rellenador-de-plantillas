@@ -78,6 +78,34 @@ resource "aws_lambda_permission" "plantillas" {
   source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
 }
 
+# --- Rutas de /documentos -> Lambda documentos ---
+resource "aws_apigatewayv2_integration" "documentos" {
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.documentos.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "documentos" {
+  for_each = toset([
+    "GET /documentos",
+    "POST /documentos",
+    "GET /documentos/{documento_id}",
+  ])
+
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = each.value
+  target    = "integrations/${aws_apigatewayv2_integration.documentos.id}"
+}
+
+resource "aws_lambda_permission" "documentos" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.documentos.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
+}
+
 output "url_api" {
   value = aws_apigatewayv2_api.api.api_endpoint
 }
