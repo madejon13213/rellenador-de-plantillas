@@ -49,6 +49,35 @@ resource "aws_lambda_permission" "usuarios" {
   source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
 }
 
+# --- Rutas de /plantillas -> Lambda plantillas ---
+resource "aws_apigatewayv2_integration" "plantillas" {
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.plantillas.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "plantillas" {
+  for_each = toset([
+    "GET /plantillas",
+    "POST /plantillas",
+    "GET /plantillas/{plantilla_id}",
+    "DELETE /plantillas/{plantilla_id}",
+  ])
+
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = each.value
+  target    = "integrations/${aws_apigatewayv2_integration.plantillas.id}"
+}
+
+resource "aws_lambda_permission" "plantillas" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.plantillas.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
+}
+
 output "url_api" {
   value = aws_apigatewayv2_api.api.api_endpoint
 }
