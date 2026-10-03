@@ -1,2 +1,2 @@
 def lambda_handler(event, context):
-    return {"statusCode": 200, "body": "¡Hola mundo desde Lambda, con Terraform!"}
+    return {"statusCode": 200, "body": "¡Hola mundo desde Lambda, form!"}

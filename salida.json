@@ -1,1 +1,1 @@
-{"statusCode": 200, "body": "¡Hola mundo desde Lambda, form!"}
+{"statusCode": 200, "body": "¡Hola mundo desde Lambda, con Terraform!"}
