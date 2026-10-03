@@ -4,3 +4,14 @@
 *.tfstate.*
 *.zip
 tfplan
+
+# Backend (Python)
+__pycache__/
+*.pyc
+.venv/
+backend/build/
+
+# Variables de entorno locales
+.env
+.env.*
+!.env.example

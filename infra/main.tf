@@ -15,7 +15,7 @@ provider "aws" {
 # 2. Empaqueta lambda_function.py en un zip (lo que hiciste con Compress-Archive).
 data "archive_file" "zip" {
   type        = "zip"
-  source_file = "${path.module}/lambda_function.py"
+  source_file = "${path.module}/../backend/lambda_function.py"
   output_path = "${path.module}/function.zip"
 }
 
