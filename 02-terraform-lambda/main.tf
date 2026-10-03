@@ -49,7 +49,46 @@ resource "aws_lambda_function" "hola" {
   source_code_hash = data.archive_file.zip.output_base64sha256
 }
 
-# 6. Muestra el nombre al terminar.
+# 6. API Gateway (HTTP API): la URL pública que llama a la Lambda.
+resource "aws_apigatewayv2_api" "api" {
+  name          = "hola-api-tf"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_integration" "lambda" {
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.hola.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "get_hola" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "GET /hola"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+# Stage $default con despliegue automático: cada cambio de ruta se publica solo.
+resource "aws_apigatewayv2_stage" "default" {
+  api_id      = aws_apigatewayv2_api.api.id
+  name        = "$default"
+  auto_deploy = true
+}
+
+# Permiso para que API Gateway pueda invocar la Lambda.
+resource "aws_lambda_permission" "apigw" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.hola.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
+}
+
+# 7. Muestra el nombre y la URL al terminar.
 output "nombre_lambda" {
   value = aws_lambda_function.hola.function_name
+}
+
+output "url_api" {
+  value = "${aws_apigatewayv2_api.api.api_endpoint}/hola"
 }
