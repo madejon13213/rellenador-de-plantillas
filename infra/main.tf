@@ -12,10 +12,11 @@ provider "aws" {
   region = "eu-north-1"
 }
 
-# 2. Empaqueta lambda_function.py en un zip (lo que hiciste con Compress-Archive).
+# 2. Empaqueta backend/build (código + plantillas + dependencias) en un zip.
+#    backend/build lo genera backend/build.sh antes de ejecutar Terraform.
 data "archive_file" "zip" {
   type        = "zip"
-  source_file = "${path.module}/../backend/lambda_function.py"
+  source_dir  = "${path.module}/../backend/build"
   output_path = "${path.module}/function.zip"
 }
 
@@ -47,12 +48,23 @@ resource "aws_lambda_function" "hola" {
   role             = aws_iam_role.lambda_rol.arn
   filename         = data.archive_file.zip.output_path
   source_code_hash = data.archive_file.zip.output_base64sha256
+  timeout          = 15
+  memory_size      = 256
 }
 
 # 6. API Gateway (HTTP API): la URL pública que llama a la Lambda.
 resource "aws_apigatewayv2_api" "api" {
   name          = "hola-api-tf"
   protocol_type = "HTTP"
+
+  # Permite que la web (Next.js) llame a la API desde el navegador.
+  # Cuando publiques el frontend, añade aquí su dominio.
+  cors_configuration {
+    allow_origins  = ["http://localhost:3000"]
+    allow_methods  = ["POST", "OPTIONS"]
+    allow_headers  = ["content-type"]
+    expose_headers = ["content-disposition"]
+  }
 }
 
 resource "aws_apigatewayv2_integration" "lambda" {
@@ -62,9 +74,9 @@ resource "aws_apigatewayv2_integration" "lambda" {
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "get_hola" {
+resource "aws_apigatewayv2_route" "post_generar" {
   api_id    = aws_apigatewayv2_api.api.id
-  route_key = "GET /hola"
+  route_key = "POST /generar"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
@@ -90,5 +102,5 @@ output "nombre_lambda" {
 }
 
 output "url_api" {
-  value = "${aws_apigatewayv2_api.api.api_endpoint}/hola"
+  value = "${aws_apigatewayv2_api.api.api_endpoint}/generar"
 }
