@@ -1,0 +1,6 @@
+# Terraform: nunca subir estado ni cachés (el estado puede contener secretos)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.zip
+tfplan
