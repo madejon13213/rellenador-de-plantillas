@@ -58,7 +58,7 @@ resource "aws_cloudfront_function" "rutas" {
 
 # La distribución de CloudFront: la dirección pública https://xxxx.cloudfront.net.
 resource "aws_cloudfront_distribution" "web" {
-  enabled             = true
+  enabled             = false
   default_root_object = "index.html"
   price_class         = "PriceClass_100" # solo Europa y Norteamérica: la más barata
 
