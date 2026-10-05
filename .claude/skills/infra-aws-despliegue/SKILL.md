@@ -15,6 +15,18 @@ Para la forma del código y las carpetas usa `estructura-proyecto`. Esta skill c
 - **Credenciales de CI:** secrets de GitHub `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY` del usuario IAM `github-deploy`, no del usuario administrador del dueño.
 - **Local:** el dueño aplica a mano con su usuario administrador solo en casos puntuales. `terraform plan` en local falla mientras no exista `backend/build/documentos`, porque ese zip se genera con Python y no tiene Python instalado. El camino normal es siempre push.
 
+## La web (S3 + CloudFront)
+
+`infra/web.tf` crea el bucket privado `web-<cuenta>-eu-north-1` y una distribución de CloudFront que lo lee mediante OAC. Una CloudFront Function convierte `/usuarios` en `/usuarios/index.html`, porque Next.js se exporta como estático (`output: "export"` y `trailingSlash: true` en `frontend/next.config.ts`).
+
+El workflow, tras el `apply`, lee `url_api`, `bucket_web` y `distribucion_web_id` con `terraform output -raw` (por eso `terraform_wrapper: false`), compila el frontend con `NEXT_PUBLIC_API_URL` apuntando a la API recién desplegada, hace `aws s3 sync out ... --delete` y crea una invalidación `/*` en CloudFront. La URL pública es la salida `url_web`.
+
+- La dirección de CloudFront está en `allow_origins` del CORS de la API (`api.tf`), de modo que el navegador acepta las llamadas desde la web publicada.
+- Cambiar la web o la API no exige tocar el otro lado: el push recompila todo.
+- La política de `github-deploy` necesita `cloudfront:*` sobre `*` (los ids de distribución no se conocen de antemano) y `s3:*` sobre el bucket web.
+- La primera vez, CloudFront tarda varios minutos en desplegarse y `terraform apply` espera a que termine.
+- Un `403`/`404` en la web publicada suele ser que falta subir los archivos o que la función de rutas no coincide con la estructura de `out/`.
+
 ## API Gateway
 
 Una única HTTP API (`rellenador-api`), no REST. Por cada Lambda hay cuatro piezas en `api.tf`, y un recurso nuevo debe seguir el mismo patrón:

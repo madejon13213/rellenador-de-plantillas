@@ -44,8 +44,15 @@ aws iam create-policy-version --policy-arn arn:aws:iam::664342886904:policy/gith
         "arn:aws:s3:::plantillas-664342886904-eu-north-1",
         "arn:aws:s3:::plantillas-664342886904-eu-north-1/*",
         "arn:aws:s3:::documentos-664342886904-eu-north-1",
-        "arn:aws:s3:::documentos-664342886904-eu-north-1/*"
+        "arn:aws:s3:::documentos-664342886904-eu-north-1/*",
+        "arn:aws:s3:::web-664342886904-eu-north-1",
+        "arn:aws:s3:::web-664342886904-eu-north-1/*"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "cloudfront:*",
+      "Resource": "*"
     },
     {
       "Effect": "Allow",

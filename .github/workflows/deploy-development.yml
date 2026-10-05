@@ -29,7 +29,10 @@ jobs:
       # Empaqueta la Lambda de documentos (código + dependencias) antes de Terraform.
       - run: bash ../backend/build.sh
 
+      # Sin el envoltorio de salida, `terraform output -raw` devuelve solo el valor.
       - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -44,3 +47,34 @@ jobs:
       - run: terraform plan -input=false -out=tfplan
 
       - run: terraform apply -input=false -auto-approve tfplan
+
+      # --- Web: compilar con la URL de la API recién desplegada y publicarla ---
+      - name: Leer salidas de Terraform
+        id: salidas
+        run: |
+          echo "api=$(terraform output -raw url_api)" >> "$GITHUB_OUTPUT"
+          echo "bucket=$(terraform output -raw bucket_web)" >> "$GITHUB_OUTPUT"
+          echo "distribucion=$(terraform output -raw distribucion_web_id)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      # La dirección de la API se incrusta en la web al compilar.
+      - run: npm run build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ steps.salidas.outputs.api }}
+
+      - name: Subir la web al bucket
+        run: aws s3 sync out "s3://${{ steps.salidas.outputs.bucket }}" --delete
+        working-directory: frontend
+
+      # CloudFront guarda copias: se invalidan para que se vea la versión nueva.
+      - name: Refrescar CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ steps.salidas.outputs.distribucion }}" --paths "/*"

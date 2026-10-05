@@ -7,7 +7,8 @@ Aplicación web que genera documentos Word a partir de una plantilla `.docx` y l
 - **Usuarios:** alta, listado, edición y borrado. Campos: `nombre`, `apellidos`, `dni`, `email` (obligatorios) y `telefono`, `direccion`, `ciudad` (opcionales).
 - **Plantillas:** se suben como `.docx` (máx. 4 MB). Al subirlas se detectan automáticamente los campos `{{ campo }}` que contienen. Se pueden listar y borrar.
 - **Documentos:** se elige plantilla + usuario, se genera el `.docx` relleno, se guarda en S3 y se anota en un historial. Los campos de la plantilla sin dato en el usuario quedan vacíos y se avisa de cuáles son.
-- **Pendiente:** descarga en PDF (requiere convertir con LibreOffice en una Lambda con contenedor), login con Cognito, publicar el frontend (S3 + CloudFront).
+- **Web publicada** en S3 + CloudFront (`infra/web.tf`), desplegada por el mismo workflow tras el `apply`. Su dirección es la salida `url_web` de Terraform.
+- **Pendiente:** descarga en PDF (requiere convertir con LibreOffice en una Lambda con contenedor) y login con Cognito. Mientras no haya login, la web y la API son accesibles para cualquiera que conozca la dirección.
 
 ## Arquitectura
 

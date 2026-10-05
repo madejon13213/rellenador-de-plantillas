@@ -3,10 +3,13 @@ resource "aws_apigatewayv2_api" "api" {
   name          = "rellenador-api"
   protocol_type = "HTTP"
 
-  # Permite que la web (Next.js en local) llame a la API desde el navegador.
-  # Cuando publiques el frontend, añade aquí su dominio.
+  # Permite que la web llame a la API desde el navegador: en local (Next.js en :3000)
+  # y publicada (la dirección de CloudFront).
   cors_configuration {
-    allow_origins = ["http://localhost:3000"]
+    allow_origins = [
+      "http://localhost:3000",
+      "https://${aws_cloudfront_distribution.web.domain_name}",
+    ]
     allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allow_headers = ["content-type"]
   }
