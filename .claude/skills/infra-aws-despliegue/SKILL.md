@@ -27,20 +27,9 @@ El workflow, tras el `apply`, lee `url_api`, `bucket_web` y `distribucion_web_id
 - La primera vez, CloudFront tarda varios minutos en desplegarse y `terraform apply` espera a que termine.
 - Un `403`/`404` en la web publicada suele ser que falta subir los archivos o que la función de rutas no coincide con la estructura de `out/`.
 
-## Login (Cognito + JWT)
+## Login
 
-`infra/auth.tf` define el user pool `rellenador-usuarios` (entrada con email, **sin registro libre**: las cuentas las crea el administrador, contraseña de 12+ caracteres, MFA desactivado), el dominio de login `rellenador-<cuenta>.auth.eu-north-1.amazoncognito.com`, un cliente público `web` (sin secreto, flujo de código + PKCE, revocación de tokens) y el autorizador JWT `cognito-jwt` del API Gateway. **Todas las rutas** de `api.tf` llevan `authorization_type = "JWT"` y `authorizer_id`; una ruta nueva debe llevarlos también o quedaría pública.
-
-- El frontend usa Amplify (`signInWithRedirect`), manda el **access token** como `Authorization: Bearer <token>` y API Gateway valida firma, emisor, audiencia y caducidad antes de invocar la Lambda. El CORS permite la cabecera `authorization`. Las llamadas sin token reciben 401.
-- Las URLs de retorno del cliente (`callback_urls` y `logout_urls`) deben coincidir **exactamente**, con la barra final: `http://localhost:3000/` y `https://<cloudfront>/`. Si se cambia el dominio de la web, hay que cambiarlas ahí o aparece `redirect_mismatch`.
-- El workflow pasa el user pool, el cliente y el dominio al compilar la web como `NEXT_PUBLIC_COGNITO_*`; en local van en `frontend/.env.local`.
-- Las Lambdas no validan el token (ya lo hizo API Gateway). Si se necesita saber quién llama, los datos están en `event["requestContext"]["authorizer"]["jwt"]["claims"]`.
-- El autorizador no valida claims propios ni grupos; si se añaden roles, hay que comprobarlos en la Lambda.
-- Crear un usuario (lo hace el administrador, con su usuario de AWS):
-  `aws cognito-idp admin-create-user --user-pool-id <id> --username <email> --user-attributes Name=email,Value=<email> Name=email_verified,Value=true --message-action SUPPRESS`
-  y después `aws cognito-idp admin-set-user-password --user-pool-id <id> --username <email> --password '<contraseña>' --permanent`.
-- Mejoras pendientes: MFA obligatorio (`mfa_configuration = "ON"` con TOTP), rotación de refresh tokens, `cookieStorage` en lugar de `localStorage` para los tokens, y WAF o límites de peticiones en el stage.
-- `github-deploy` necesita `cognito-idp:*` (los ids del user pool no se conocen de antemano).
+Todas las rutas del API Gateway exigen un token JWT de Cognito (`infra/auth.tf`). **Una ruta nueva en `api.tf` debe llevar `authorization_type = "JWT"` y `authorizer_id = aws_apigatewayv2_authorizer.cognito.id`**, o quedaría pública. Todo lo demás del login, el registro y el aislamiento de datos por cuenta está en la skill `login-cognito`. `github-deploy` necesita `cognito-idp:*`.
 
 ## API Gateway
 
@@ -59,6 +48,9 @@ resource "aws_apigatewayv2_route" "x" {
   api_id    = aws_apigatewayv2_api.api.id
   route_key = each.value
   target    = "integrations/${aws_apigatewayv2_integration.x.id}"
+
+  authorization_type = "JWT"   # sin esto la ruta queda pública
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_lambda_permission" "x" {
@@ -72,13 +64,13 @@ resource "aws_lambda_permission" "x" {
 
 - Sin `aws_lambda_permission` la ruta devuelve 500 aunque todo lo demás esté bien: API Gateway no tiene derecho a invocar la función.
 - El stage es `$default` con `auto_deploy = true`, así que las rutas nuevas se publican solas.
-- **CORS** vive en el bloque `cors_configuration` de `aws_apigatewayv2_api`: hoy solo `http://localhost:3000`, métodos `GET/POST/PUT/DELETE/OPTIONS` y cabecera `content-type`. Cuando se publique el frontend hay que añadir su dominio en `allow_origins`. Un "No se pudo conectar" en la web con la API sana casi siempre es CORS o una URL equivocada. El navegador debe usar `localhost`, no `127.0.0.1`.
+- **CORS** vive en el bloque `cors_configuration` de `aws_apigatewayv2_api`: `http://localhost:3000` y la dirección de CloudFront, métodos `GET/POST/PUT/DELETE/OPTIONS` y cabeceras `content-type` y `authorization`. Un dominio nuevo para la web hay que añadirlo en `allow_origins`. Un "No se pudo conectar" en la web con la API sana casi siempre es CORS o una URL equivocada. El navegador debe usar `localhost`, no `127.0.0.1`.
 - Límites: 10 MB por petición en API Gateway y 6 MB en Lambda. Por eso las plantillas suben en base64 con un máximo de 4 MB y los documentos se descargan por URL temporal de S3 y no por la API.
 - La salida `url_api` es la URL base sin ruta.
 
 ## Lambdas en Terraform
 
-Cada `x.tf` define, por este orden: `archive_file`, rol IAM (`x-lambda-rol`) con `AWSLambdaBasicExecutionRole` más una política en línea mínima, y `aws_lambda_function` (runtime `python3.12`, handler `lambda_function.lambda_handler`, `source_code_hash` del zip, variables de entorno con nombres de tabla y bucket). Tablas en `PAY_PER_REQUEST`; buckets con bloqueo de acceso público y cifrado AES256.
+Cada `x.tf` define, por este orden: `archive_file`, rol IAM (`x-lambda-rol`) con `AWSLambdaBasicExecutionRole` más una política en línea mínima, y `aws_lambda_function` (runtime `python3.12`, handler `lambda_function.lambda_handler`, `source_code_hash` del zip, variables de entorno con nombres de tabla y bucket). Tablas en `PAY_PER_REQUEST` con un índice `owner-index` (`owner_id` + `created_at`) y el permiso `dynamodb:Query` sobre la tabla y su `index/*` en el rol de la Lambda; buckets con bloqueo de acceso público y cifrado AES256. Ninguna Lambda usa `Scan`: listar es siempre `Query` por propietario.
 
 - **Sin dependencias:** `archive_file` con `source_dir = "../backend/x"` y `excludes = ["__pycache__"]`.
 - **Con dependencias:** `source_dir = "../backend/build/x"`. Añade `x/requirements.txt` y una sección en `backend/build.sh` que instale con `pip install -r ... -t build/x --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 --only-binary=:all: --no-compile` y copie el `lambda_function.py`. Las librerías compiladas (`lxml`) tienen que ser las de Linux, por eso la bandera `--platform`.
@@ -102,11 +94,11 @@ Dile siempre al usuario que ejecute esos comandos él mismo en su terminal: son 
 
 1. `backend/x/lambda_function.py` (y `requirements.txt` + sección en `build.sh` si tiene dependencias). Sigue `estructura-proyecto`.
 2. `infra/x.tf` con tabla/bucket si hacen falta, rol, política mínima y función.
-3. En `infra/api.tf`: integración, rutas y permiso (plantilla de arriba).
+3. En `infra/api.tf`: integración, rutas (con el autorizador JWT) y permiso (plantilla de arriba).
 4. Si hay dependencias, añade el paso al workflow solo si no está ya (`setup-python` + `bash ../backend/build.sh`).
 5. Amplía la política de `github-deploy` si los nombres no estaban previstos.
 6. Añade los métodos a `src/lib/api.ts` y la página del frontend.
-7. Commit y push a `development`; mirar *Actions*; probar con PowerShell.
+7. Commit y push a `development`; mirar *Actions*; probar (ver `probar-y-depurar`).
 
 ## Diagnosticar un fallo de Actions
 
@@ -119,20 +111,15 @@ Pide siempre el texto del paso en rojo (la anotación "exit code 1" no dice nada
 | `EntityAlreadyExists` | El estado de S3 no conoce un recurso que ya existe (rol, tabla, bucket) |
 | `Error acquiring the state lock` | Dos ejecuciones a la vez (CI y local); repetir |
 | Falla `build.sh` | Dependencia sin versión precompilada para Linux, o `.sh` con saltos de línea de Windows |
+| `401` al llamar a la API | Falta el token o ha caducado (ver `login-cognito`) |
 | `Not Found` al llamar a la API | Ruta distinta, o llamada con GET a una ruta POST |
 | `Internal Server Error` | Falta `aws_lambda_permission`, o error en la Lambda: `aws logs tail /aws/lambda/x-api --region eu-north-1 --since 15m` |
 
 Si `aws` o `terraform` en local fallan por `AWS_PROFILE`, es una variable de entorno de la cuenta anterior que apunta a un perfil inexistente: `Remove-Item Env:AWS_PROFILE`.
 
-## Probar la API desde PowerShell
+## Probar la API
 
-Estando en `infra`, con `$api = terraform output -raw url_api`. En PowerShell 5.1 el JSON con acentos hay que enviarlo como bytes UTF-8:
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "$api/usuarios" -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($body))
-```
-
-Para subir una plantilla, el archivo se convierte con `[Convert]::ToBase64String([IO.File]::ReadAllBytes("ruta absoluta"))`. No uses nunca IDs de ejemplo como `"1"`: obtén los reales con `GET /usuarios` y `GET /plantillas`.
+Con el login, una llamada sin token devuelve 401, así que `Invoke-RestMethod` a secas ya no sirve. Cómo probar y depurar está en la skill `probar-y-depurar`.
 
 ## Qué no hacer
 

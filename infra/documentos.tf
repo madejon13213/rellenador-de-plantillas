@@ -14,6 +14,24 @@ resource "aws_dynamodb_table" "documentos" {
     type = "S"
   }
 
+  # Cada dato pertenece a la cuenta que lo creó. El índice permite listar solo los suyos.
+  attribute {
+    name = "owner_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "owner-index"
+    hash_key        = "owner_id"
+    range_key       = "created_at"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled = true
   }
@@ -84,8 +102,11 @@ resource "aws_iam_role_policy" "documentos_acceso" {
       },
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Scan"]
-        Resource = aws_dynamodb_table.documentos.arn
+        Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
+        Resource = [
+          aws_dynamodb_table.documentos.arn,
+          "${aws_dynamodb_table.documentos.arn}/index/*",
+        ]
       },
       {
         Effect   = "Allow"

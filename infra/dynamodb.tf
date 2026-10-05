@@ -22,6 +22,24 @@ resource "aws_dynamodb_table" "usuarios" {
     projection_type = "ALL"
   }
 
+  # Cada dato pertenece a la cuenta que lo creó. El índice permite listar solo los suyos.
+  attribute {
+    name = "owner_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "owner-index"
+    hash_key        = "owner_id"
+    range_key       = "created_at"
+    projection_type = "ALL"
+  }
+
   # Permite restaurar la tabla a cualquier punto de los últimos 35 días.
   point_in_time_recovery {
     enabled = true

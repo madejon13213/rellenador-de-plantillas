@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Icono } from "@/components/iconos";
+import { Aviso, Avatar, Boton, Cabecera, Campo, Tarjeta, Vacio } from "@/components/ui";
 import { api, type Usuario, type UsuarioForm } from "@/lib/api";
-import { Aviso, Boton, Campo, Tarjeta } from "@/components/ui";
 
 const VACIO: UsuarioForm = {
   nombre: "",
@@ -91,10 +92,13 @@ export default function PaginaUsuarios() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Usuarios</h1>
+      <Cabecera titulo="Usuarios" descripcion="Las personas cuyos datos se usan para rellenar las plantillas." />
       <Aviso mensaje={error} />
 
-      <Tarjeta titulo={editando ? "Editar usuario" : "Nuevo usuario"}>
+      <Tarjeta
+        titulo={editando ? "Editar usuario" : "Nuevo usuario"}
+        descripcion={editando ? "Modifica los datos y guarda los cambios." : "Solo tú puedes ver los usuarios que añadas."}
+      >
         <form onSubmit={guardar} className="grid gap-4 sm:grid-cols-2">
           <Campo etiqueta="Nombre" required maxLength={200} value={valores.nombre} onChange={(e) => cambiar("nombre", e.target.value)} />
           <Campo etiqueta="Apellidos" required maxLength={200} value={valores.apellidos} onChange={(e) => cambiar("apellidos", e.target.value)} />
@@ -107,6 +111,7 @@ export default function PaginaUsuarios() {
           </div>
           <div className="flex gap-2 sm:col-span-2">
             <Boton type="submit" disabled={guardando}>
+              <Icono nombre={editando ? "check" : "mas"} className="h-4 w-4" />
               {guardando ? "Guardando…" : editando ? "Guardar cambios" : "Crear usuario"}
             </Boton>
             {editando && (
@@ -118,39 +123,34 @@ export default function PaginaUsuarios() {
         </form>
       </Tarjeta>
 
-      <Tarjeta titulo={`Usuarios (${usuarios.length})`}>
+      <Tarjeta titulo={`Tus usuarios (${usuarios.length})`}>
         {cargando ? (
           <p className="text-sm text-zinc-500">Cargando…</p>
         ) : usuarios.length === 0 ? (
-          <p className="text-sm text-zinc-500">Todavía no hay usuarios.</p>
+          <Vacio icono="usuarios" texto="Todavía no has añadido ningún usuario." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">Nombre</th>
-                  <th className="py-2 pr-4 font-medium">DNI</th>
-                  <th className="py-2 pr-4 font-medium">Email</th>
-                  <th className="py-2 pr-4 font-medium">Ciudad</th>
-                  <th className="py-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map((u) => (
-                  <tr key={u.user_id} className="border-b border-zinc-100 dark:border-zinc-900">
-                    <td className="py-2 pr-4">{u.nombre} {u.apellidos}</td>
-                    <td className="py-2 pr-4">{u.dni}</td>
-                    <td className="py-2 pr-4">{u.email}</td>
-                    <td className="py-2 pr-4">{u.ciudad}</td>
-                    <td className="flex justify-end gap-2 py-2">
-                      <Boton variante="secundario" onClick={() => empezarEdicion(u)}>Editar</Boton>
-                      <Boton variante="peligro" onClick={() => borrar(u)}>Eliminar</Boton>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
+            {usuarios.map((u) => (
+              <li key={u.user_id} className="flex flex-wrap items-center gap-4 py-3 first:pt-0 last:pb-0">
+                <Avatar nombre={u.nombre} className="h-10 w-10" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{u.nombre} {u.apellidos}</p>
+                  <p className="truncate text-sm text-zinc-500">
+                    {u.email} · {u.dni}{u.ciudad ? ` · ${u.ciudad}` : ""}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Boton variante="secundario" onClick={() => empezarEdicion(u)}>
+                    <Icono nombre="editar" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Editar</span>
+                  </Boton>
+                  <Boton variante="peligro" onClick={() => borrar(u)} aria-label="Eliminar">
+                    <Icono nombre="borrar" className="h-4 w-4" />
+                  </Boton>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </Tarjeta>
     </div>

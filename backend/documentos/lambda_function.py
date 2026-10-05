@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 import boto3
+from boto3.dynamodb.conditions import Key
 from botocore.config import Config
 from docxtpl import DocxTemplate
 from jinja2.exceptions import TemplateError
@@ -33,6 +34,14 @@ class ErrorPeticion(Exception):
     def __init__(self, status, mensaje):
         self.status = status
         self.mensaje = mensaje
+
+
+def propietario(event):
+    """Id de la cuenta que hace la petición (claim `sub` del token que ya validó API Gateway)."""
+    try:
+        return event["requestContext"]["authorizer"]["jwt"]["claims"]["sub"]
+    except KeyError:
+        raise ErrorPeticion(401, "No autenticado")
 
 
 def respuesta(status, cuerpo=None):
@@ -88,15 +97,16 @@ def pedir_id(datos, campo):
 
 
 def generar(event):
+    owner = propietario(event)
     datos = leer_json(event)
     plantilla_id = pedir_id(datos, "plantilla_id")
     user_id = pedir_id(datos, "user_id")
 
     plantilla = T_PLANTILLAS.get_item(Key={"plantilla_id": plantilla_id}).get("Item")
-    if not plantilla:
+    if not plantilla or plantilla.get("owner_id") != owner:
         raise ErrorPeticion(404, "Plantilla no encontrada")
     usuario = T_USUARIOS.get_item(Key={"user_id": user_id}).get("Item")
-    if not usuario:
+    if not usuario or usuario.get("owner_id") != owner:
         raise ErrorPeticion(404, "Usuario no encontrado")
 
     contexto = {k: v for k, v in usuario.items() if isinstance(v, str)}
@@ -115,6 +125,7 @@ def generar(event):
     clave = f"documentos/{documento_id}.docx"
     item = {
         "documento_id": documento_id,
+        "owner_id": owner,
         "plantilla_id": plantilla_id,
         "plantilla_nombre": plantilla["nombre"],
         "user_id": user_id,
@@ -140,9 +151,14 @@ def generar(event):
 
 
 def listar(event):
+    owner = propietario(event)
     items, kwargs = [], {}
     while True:
-        r = T_DOCUMENTOS.scan(**kwargs)
+        r = T_DOCUMENTOS.query(
+            IndexName="owner-index",
+            KeyConditionExpression=Key("owner_id").eq(owner),
+            **kwargs,
+        )
         items.extend(r["Items"])
         if "LastEvaluatedKey" not in r:
             break
@@ -152,8 +168,9 @@ def listar(event):
 
 
 def obtener(event):
+    owner = propietario(event)
     item = T_DOCUMENTOS.get_item(Key={"documento_id": event["pathParameters"]["documento_id"]}).get("Item")
-    if not item:
+    if not item or item.get("owner_id") != owner:
         raise ErrorPeticion(404, "Documento no encontrado")
     return respuesta(200, {**publico(item), "url_descarga": url_descarga(item)})
 

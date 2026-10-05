@@ -10,6 +10,7 @@ import zipfile
 from datetime import datetime, timezone
 
 import boto3
+from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 TABLA = boto3.resource("dynamodb").Table(os.environ["TABLA_PLANTILLAS"])
@@ -39,6 +40,14 @@ def respuesta(status, cuerpo=None):
     if cuerpo is not None:
         r["body"] = json.dumps(cuerpo, ensure_ascii=False, default=str)
     return r
+
+
+def propietario(event):
+    """Id de la cuenta que hace la petición (claim `sub` del token que ya validó API Gateway)."""
+    try:
+        return event["requestContext"]["authorizer"]["jwt"]["claims"]["sub"]
+    except KeyError:
+        raise ErrorPeticion(401, "No autenticado")
 
 
 def publica(item):
@@ -76,6 +85,7 @@ def extraer_campos(zf):
 
 
 def crear(event):
+    owner = propietario(event)
     datos = leer_json(event)
 
     nombre = str(datos.get("nombre", "")).strip()
@@ -105,6 +115,7 @@ def crear(event):
     clave = f"plantillas/{plantilla_id}.docx"
     item = {
         "plantilla_id": plantilla_id,
+        "owner_id": owner,
         "nombre": nombre,
         "archivo_nombre": str(datos.get("archivo_nombre", ""))[:150],
         "campos": campos,
@@ -128,9 +139,14 @@ def crear(event):
 
 
 def listar(event):
+    owner = propietario(event)
     items, kwargs = [], {}
     while True:
-        r = TABLA.scan(**kwargs)
+        r = TABLA.query(
+            IndexName="owner-index",
+            KeyConditionExpression=Key("owner_id").eq(owner),
+            **kwargs,
+        )
         items.extend(r["Items"])
         if "LastEvaluatedKey" not in r:
             break
@@ -140,20 +156,24 @@ def listar(event):
 
 
 def obtener(event):
+    owner = propietario(event)
     item = TABLA.get_item(Key={"plantilla_id": event["pathParameters"]["plantilla_id"]}).get("Item")
-    if not item:
+    # Una plantilla de otra cuenta se trata como si no existiera.
+    if not item or item.get("owner_id") != owner:
         raise ErrorPeticion(404, "Plantilla no encontrada")
     return respuesta(200, publica(item))
 
 
 def borrar(event):
+    owner = propietario(event)
     clave_tabla = {"plantilla_id": event["pathParameters"]["plantilla_id"]}
     try:
         # Primero el registro: si el borrado del archivo fallara, solo quedaría un archivo
         # invisible, nunca un registro que apunte a un archivo que no existe.
         r = TABLA.delete_item(
             Key=clave_tabla,
-            ConditionExpression="attribute_exists(plantilla_id)",
+            ConditionExpression="attribute_exists(plantilla_id) AND owner_id = :owner",
+            ExpressionAttributeValues={":owner": owner},
             ReturnValues="ALL_OLD",
         )
     except ClientError as e:

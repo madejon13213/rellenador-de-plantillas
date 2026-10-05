@@ -16,6 +16,24 @@ resource "aws_dynamodb_table" "plantillas" {
     type = "S"
   }
 
+  # Cada dato pertenece a la cuenta que lo creó. El índice permite listar solo los suyos.
+  attribute {
+    name = "owner_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "owner-index"
+    hash_key        = "owner_id"
+    range_key       = "created_at"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled = true
   }
@@ -83,9 +101,12 @@ resource "aws_iam_role_policy" "plantillas_acceso" {
           "dynamodb:GetItem",
           "dynamodb:PutItem",
           "dynamodb:DeleteItem",
-          "dynamodb:Scan",
+          "dynamodb:Query",
         ]
-        Resource = aws_dynamodb_table.plantillas.arn
+        Resource = [
+          aws_dynamodb_table.plantillas.arn,
+          "${aws_dynamodb_table.plantillas.arn}/index/*",
+        ]
       },
       {
         Effect   = "Allow"

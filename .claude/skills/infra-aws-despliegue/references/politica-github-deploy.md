@@ -33,6 +33,7 @@ aws iam create-policy-version --policy-arn arn:aws:iam::664342886904:policy/gith
         "arn:aws:dynamodb:eu-north-1:664342886904:table/usuarios",
         "arn:aws:dynamodb:eu-north-1:664342886904:table/usuarios/index/*",
         "arn:aws:dynamodb:eu-north-1:664342886904:table/plantillas",
+        "arn:aws:dynamodb:eu-north-1:664342886904:table/plantillas/index/*",
         "arn:aws:dynamodb:eu-north-1:664342886904:table/documentos",
         "arn:aws:dynamodb:eu-north-1:664342886904:table/documentos/index/*"
       ]

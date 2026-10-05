@@ -4,12 +4,13 @@ Aplicación web que genera documentos Word a partir de una plantilla `.docx` y l
 
 ## Qué hace
 
+- **Cuentas y datos:** cualquiera puede registrarse (con código de verificación por email) e iniciar sesión. **Cada cuenta solo ve y toca sus propios datos**: usuarios, plantillas y documentos llevan `owner_id`.
 - **Usuarios:** alta, listado, edición y borrado. Campos: `nombre`, `apellidos`, `dni`, `email` (obligatorios) y `telefono`, `direccion`, `ciudad` (opcionales).
 - **Plantillas:** se suben como `.docx` (máx. 4 MB). Al subirlas se detectan automáticamente los campos `{{ campo }}` que contienen. Se pueden listar y borrar.
 - **Documentos:** se elige plantilla + usuario, se genera el `.docx` relleno, se guarda en S3 y se anota en un historial. Los campos de la plantilla sin dato en el usuario quedan vacíos y se avisa de cuáles son.
 - **Web publicada** en S3 + CloudFront (`infra/web.tf`), desplegada por el mismo workflow tras el `apply`. Su dirección es la salida `url_web` de Terraform.
-- **Login con Amazon Cognito:** la web exige iniciar sesión y la API valida el JWT en API Gateway (todas las rutas). No hay registro libre: las cuentas las crea el administrador con `aws cognito-idp admin-create-user`. Ver `infra-aws-despliegue`.
-- **Pendiente:** descarga en PDF (requiere convertir con LibreOffice en una Lambda con contenedor), MFA y roles (hoy cualquier usuario con cuenta ve y edita todos los datos).
+- **Login con Amazon Cognito:** pantallas propias de acceso y registro; la API valida el JWT en API Gateway (todas las rutas) y las Lambdas filtran por propietario. Ver `login-cognito`.
+- **Pendiente:** descarga en PDF (requiere convertir con LibreOffice en una Lambda con contenedor), MFA, roles (por ejemplo un administrador que lo vea todo) y límites de uso.
 
 ## Arquitectura
 
@@ -42,11 +43,13 @@ Antes de tocar estos temas, carga la skill correspondiente (están en `.claude/s
 - `estructura-proyecto`: dónde va cada archivo, nombres, y cómo se escribe una Lambda y una página del frontend.
 - `infra-aws-despliegue`: Terraform, API Gateway, GitHub Actions, permisos de `github-deploy` y el checklist para añadir una Lambda nueva.
 - `plantillas-docx`: cómo se crean y suben las plantillas, cómo se guardan en S3 y cómo el id de la base de datos indica qué archivo usar.
+- `login-cognito`: login, registro, datos por cuenta (`owner_id`), gestión de cuentas y errores de acceso.
+- `probar-y-depurar`: cómo probar la web y la API (con token), leer logs y distinguir un 401, un CORS o un 500.
 
 ## Reglas que no se saltan
 
 - No hay credenciales en el código ni en git. `.env.local` y los `.tfstate` están ignorados.
-- Toda ruta nueva de la API lleva el autorizador JWT en `api.tf`; una ruta sin él queda pública.
+- Toda ruta nueva de la API lleva el autorizador JWT en `api.tf` (una ruta sin él queda pública) y, si toca datos, filtra por `owner_id` en la Lambda.
 - Cada Lambda solo recibe los permisos que necesita sobre sus propios recursos.
 - El usuario trabaja en Windows con PowerShell. Los comandos que le des deben ser de PowerShell, uno por bloque.
 - Python no está instalado en su PC: lo que dependa de Python (empaquetado de `documentos`) se ejecuta en GitHub Actions, no en local.
