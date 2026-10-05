@@ -55,6 +55,9 @@ jobs:
           echo "api=$(terraform output -raw url_api)" >> "$GITHUB_OUTPUT"
           echo "bucket=$(terraform output -raw bucket_web)" >> "$GITHUB_OUTPUT"
           echo "distribucion=$(terraform output -raw distribucion_web_id)" >> "$GITHUB_OUTPUT"
+          echo "pool=$(terraform output -raw cognito_user_pool_id)" >> "$GITHUB_OUTPUT"
+          echo "cliente=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
+          echo "dominio=$(terraform output -raw cognito_dominio)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -65,11 +68,14 @@ jobs:
       - run: npm ci
         working-directory: frontend
 
-      # La dirección de la API se incrusta en la web al compilar.
+      # La dirección de la API y los datos del login se incrustan en la web al compilar.
       - run: npm run build
         working-directory: frontend
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.salidas.outputs.api }}
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ steps.salidas.outputs.pool }}
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ steps.salidas.outputs.cliente }}
+          NEXT_PUBLIC_COGNITO_DOMAIN: ${{ steps.salidas.outputs.dominio }}
 
       - name: Subir la web al bucket
         run: aws s3 sync out "s3://${{ steps.salidas.outputs.bucket }}" --delete

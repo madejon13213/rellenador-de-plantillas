@@ -1,3 +1,5 @@
+import { tokenDeAcceso } from "@/lib/auth";
+
 const BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
 
 export type Usuario = {
@@ -37,17 +39,25 @@ export type Documento = {
 async function peticion<T>(ruta: string, metodo = "GET", cuerpo?: unknown): Promise<T> {
   if (!BASE) throw new Error("Falta NEXT_PUBLIC_API_URL en frontend/.env.local");
 
+  // El token de acceso (JWT) identifica al usuario; API Gateway lo valida antes de llamar a la Lambda.
+  const token = await tokenDeAcceso();
+  if (!token) throw new Error("Tu sesión ha caducado. Vuelve a iniciar sesión.");
+
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (cuerpo !== undefined) headers["Content-Type"] = "application/json";
+
   let resp: Response;
   try {
     resp = await fetch(`${BASE}${ruta}`, {
       method: metodo,
-      headers: cuerpo === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
     });
   } catch {
     throw new Error("No se pudo conectar con el servidor");
   }
 
+  if (resp.status === 401) throw new Error("Tu sesión ha caducado. Cierra sesión y vuelve a entrar.");
   if (resp.status === 204) return undefined as T;
   const datos = await resp.json().catch(() => null);
   if (!resp.ok) {

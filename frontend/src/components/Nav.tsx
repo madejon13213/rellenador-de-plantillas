@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Boton } from "@/components/ui";
 
 const enlaces = [
   { href: "/", texto: "Generar" },
-  { href: "/usuarios", texto: "Usuarios" },
-  { href: "/plantillas", texto: "Plantillas" },
+  { href: "/usuarios/", texto: "Usuarios" },
+  { href: "/plantillas/", texto: "Plantillas" },
 ];
 
-export default function Nav() {
+export default function Nav({ email, onCerrarSesion }: { email: string; onCerrarSesion: () => void }) {
   const ruta = usePathname();
   return (
     <header className="border-b border-zinc-200 dark:border-zinc-800">
@@ -28,6 +29,10 @@ export default function Nav() {
             {texto}
           </Link>
         ))}
+        <span className="ml-auto text-sm text-zinc-500">{email}</span>
+        <Boton variante="secundario" onClick={onCerrarSesion}>
+          Cerrar sesión
+        </Boton>
       </nav>
     </header>
   );

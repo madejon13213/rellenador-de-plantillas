@@ -11,7 +11,7 @@ resource "aws_apigatewayv2_api" "api" {
       "https://${aws_cloudfront_distribution.web.domain_name}",
     ]
     allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    allow_headers = ["content-type"]
+    allow_headers = ["content-type", "authorization"]
   }
 }
 
@@ -42,6 +42,9 @@ resource "aws_apigatewayv2_route" "usuarios" {
   api_id    = aws_apigatewayv2_api.api.id
   route_key = each.value
   target    = "integrations/${aws_apigatewayv2_integration.usuarios.id}"
+
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_lambda_permission" "usuarios" {
@@ -71,6 +74,9 @@ resource "aws_apigatewayv2_route" "plantillas" {
   api_id    = aws_apigatewayv2_api.api.id
   route_key = each.value
   target    = "integrations/${aws_apigatewayv2_integration.plantillas.id}"
+
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_lambda_permission" "plantillas" {
@@ -99,6 +105,9 @@ resource "aws_apigatewayv2_route" "documentos" {
   api_id    = aws_apigatewayv2_api.api.id
   route_key = each.value
   target    = "integrations/${aws_apigatewayv2_integration.documentos.id}"
+
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_lambda_permission" "documentos" {

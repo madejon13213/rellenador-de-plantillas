@@ -63,6 +63,7 @@ Los campos se escriben como `{{ nombre }}` (sintaxis de docxtpl/Jinja). Solo se 
 - Las páginas son componentes cliente (`"use client"`) que cargan datos con `useEffect` y una cadena `.then()`. El linter de esta versión rechaza llamar a `setState` directamente desde una función invocada en el efecto, por eso la carga inicial va inline y una función `cargar` aparte solo recarga tras crear, editar o borrar.
 - **Toda llamada a la API pasa por `src/lib/api.ts`** (objeto `api.usuarios.listar()`, etc.). Las páginas nunca llaman a `fetch` directamente. `peticion()` convierte los errores de la API en un mensaje legible.
 - La dirección de la API sale de `NEXT_PUBLIC_API_URL` (sin ruta al final), en `frontend/.env.local`. Se genera con `terraform output -raw url_api` y no se sube a git; el ejemplo está en `.env.example`.
+- **Login:** `src/lib/auth.ts` configura Amplify y expone `usuarioActual`, `iniciarSesion`, `cerrarSesion` y `tokenDeAcceso`. `src/components/AuthProvider.tsx` envuelve toda la web desde `layout.tsx`: sin sesión solo muestra la pantalla de acceso (que redirige al login de Cognito) y las páginas no se montan, así que no cargan datos. `peticion()` de `api.ts` añade el token a cada llamada. No pongas tokens en URLs ni logs. Las variables son `NEXT_PUBLIC_COGNITO_USER_POOL_ID`, `NEXT_PUBLIC_COGNITO_CLIENT_ID` y `NEXT_PUBLIC_COGNITO_DOMAIN`.
 - Los componentes de formulario y avisos van en `src/components/ui.tsx`. Si algo se repite en dos páginas, se añade ahí.
 - Antes de dar un cambio por bueno: `npx tsc --noEmit` y `npm run lint` sin errores.
 

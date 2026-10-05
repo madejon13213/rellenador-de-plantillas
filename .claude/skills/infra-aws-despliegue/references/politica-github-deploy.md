@@ -56,6 +56,11 @@ aws iam create-policy-version --policy-arn arn:aws:iam::664342886904:policy/gith
     },
     {
       "Effect": "Allow",
+      "Action": "cognito-idp:*",
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
       "Action": [
         "iam:CreateRole", "iam:GetRole", "iam:DeleteRole", "iam:TagRole", "iam:UntagRole",
         "iam:UpdateAssumeRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy",

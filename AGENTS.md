@@ -8,7 +8,8 @@ Aplicación web que genera documentos Word a partir de una plantilla `.docx` y l
 - **Plantillas:** se suben como `.docx` (máx. 4 MB). Al subirlas se detectan automáticamente los campos `{{ campo }}` que contienen. Se pueden listar y borrar.
 - **Documentos:** se elige plantilla + usuario, se genera el `.docx` relleno, se guarda en S3 y se anota en un historial. Los campos de la plantilla sin dato en el usuario quedan vacíos y se avisa de cuáles son.
 - **Web publicada** en S3 + CloudFront (`infra/web.tf`), desplegada por el mismo workflow tras el `apply`. Su dirección es la salida `url_web` de Terraform.
-- **Pendiente:** descarga en PDF (requiere convertir con LibreOffice en una Lambda con contenedor) y login con Cognito. Mientras no haya login, la web y la API son accesibles para cualquiera que conozca la dirección.
+- **Login con Amazon Cognito:** la web exige iniciar sesión y la API valida el JWT en API Gateway (todas las rutas). No hay registro libre: las cuentas las crea el administrador con `aws cognito-idp admin-create-user`. Ver `infra-aws-despliegue`.
+- **Pendiente:** descarga en PDF (requiere convertir con LibreOffice en una Lambda con contenedor), MFA y roles (hoy cualquier usuario con cuenta ve y edita todos los datos).
 
 ## Arquitectura
 
@@ -45,7 +46,7 @@ Antes de tocar estos temas, carga la skill correspondiente (están en `.claude/s
 ## Reglas que no se saltan
 
 - No hay credenciales en el código ni en git. `.env.local` y los `.tfstate` están ignorados.
-- La API es pública y sin login por ahora: no guardar datos reales de personas hasta añadir Cognito.
+- Toda ruta nueva de la API lleva el autorizador JWT en `api.tf`; una ruta sin él queda pública.
 - Cada Lambda solo recibe los permisos que necesita sobre sus propios recursos.
 - El usuario trabaja en Windows con PowerShell. Los comandos que le des deben ser de PowerShell, uno por bloque.
 - Python no está instalado en su PC: lo que dependa de Python (empaquetado de `documentos`) se ejecuta en GitHub Actions, no en local.

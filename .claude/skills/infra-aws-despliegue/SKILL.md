@@ -27,6 +27,21 @@ El workflow, tras el `apply`, lee `url_api`, `bucket_web` y `distribucion_web_id
 - La primera vez, CloudFront tarda varios minutos en desplegarse y `terraform apply` espera a que termine.
 - Un `403`/`404` en la web publicada suele ser que falta subir los archivos o que la función de rutas no coincide con la estructura de `out/`.
 
+## Login (Cognito + JWT)
+
+`infra/auth.tf` define el user pool `rellenador-usuarios` (entrada con email, **sin registro libre**: las cuentas las crea el administrador, contraseña de 12+ caracteres, MFA desactivado), el dominio de login `rellenador-<cuenta>.auth.eu-north-1.amazoncognito.com`, un cliente público `web` (sin secreto, flujo de código + PKCE, revocación de tokens) y el autorizador JWT `cognito-jwt` del API Gateway. **Todas las rutas** de `api.tf` llevan `authorization_type = "JWT"` y `authorizer_id`; una ruta nueva debe llevarlos también o quedaría pública.
+
+- El frontend usa Amplify (`signInWithRedirect`), manda el **access token** como `Authorization: Bearer <token>` y API Gateway valida firma, emisor, audiencia y caducidad antes de invocar la Lambda. El CORS permite la cabecera `authorization`. Las llamadas sin token reciben 401.
+- Las URLs de retorno del cliente (`callback_urls` y `logout_urls`) deben coincidir **exactamente**, con la barra final: `http://localhost:3000/` y `https://<cloudfront>/`. Si se cambia el dominio de la web, hay que cambiarlas ahí o aparece `redirect_mismatch`.
+- El workflow pasa el user pool, el cliente y el dominio al compilar la web como `NEXT_PUBLIC_COGNITO_*`; en local van en `frontend/.env.local`.
+- Las Lambdas no validan el token (ya lo hizo API Gateway). Si se necesita saber quién llama, los datos están en `event["requestContext"]["authorizer"]["jwt"]["claims"]`.
+- El autorizador no valida claims propios ni grupos; si se añaden roles, hay que comprobarlos en la Lambda.
+- Crear un usuario (lo hace el administrador, con su usuario de AWS):
+  `aws cognito-idp admin-create-user --user-pool-id <id> --username <email> --user-attributes Name=email,Value=<email> Name=email_verified,Value=true --message-action SUPPRESS`
+  y después `aws cognito-idp admin-set-user-password --user-pool-id <id> --username <email> --password '<contraseña>' --permanent`.
+- Mejoras pendientes: MFA obligatorio (`mfa_configuration = "ON"` con TOTP), rotación de refresh tokens, `cookieStorage` en lugar de `localStorage` para los tokens, y WAF o límites de peticiones en el stage.
+- `github-deploy` necesita `cognito-idp:*` (los ids del user pool no se conocen de antemano).
+
 ## API Gateway
 
 Una única HTTP API (`rellenador-api`), no REST. Por cada Lambda hay cuatro piezas en `api.tf`, y un recurso nuevo debe seguir el mismo patrón:
